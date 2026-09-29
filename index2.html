@@ -1,0 +1,284 @@
+<title>orporporporporporporporp</title>
+<div style="outline: solid black 2px; margin: 5px; padding: 5px; display: flex; gap: 10px">
+<h3>orp studio in brazil</h3>
+<p id="detailTxt">loading</p>
+<button id="detailBtn">edit obby details</button>
+<button id="undoBtn">travelling into the past (undo)</button>
+<button id="redoBtn">im from the future (redo)</button>
+<button id="exportBtn">export as json</button>
+<button id="nukeBtn">nuke all my progress please</button> <!--srsly?-->
+<button id="laBtn">quote btn cuz yes</button>
+<button id="addPart">add part</button>
+<button id="deletePart">kill part</button>
+<button id="modeBtn">switch mode</button>
+<p>sorri no save n load cuz illegal exporter 😱😨</p>
+</div>
+<div style="outline: solid black 2px; margin: 5px; padding: 5px; width: 100px; font-size: 10px">
+<p id="partdetailexe">No part selected :/</p>
+</div>
+
+<script type="importmap">
+{
+	"imports": {
+		"three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+    	}
+}
+</script>
+
+<!--im lazy-->
+<script type="module">
+//ready thing
+const obbyDel = JSON.parse(localStorage.getItem("obby"));
+const detailTxt = document.getElementById("detailTxt");
+
+import * as THREE from "three";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js";
+import { TransformControls } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/TransformControls.js";
+
+function updateDetail() {
+	if (obbyDel.name || obbyDel.creator || obbyDel.diff) {
+		detailTxt.textContent = `${obbyDel.name} by ${obbyDel.creator} (Diff: ${obbyDel.diff})`
+	} else {
+		detailTxt.textContent = "insert something here (plz use the edit obby details button to fix this)"
+	}
+}
+updateDetail()
+
+//important var-------------------
+let obbyName = obbyDel.name;
+let obbyCreator = obbyDel.creator;
+let obbyDiff = obbyDel.diff
+let partTran = 1 //stud
+let partScale = 0.5 //stud
+let partRotate = 15 //degree
+//Button n stuff--------------------------
+const detailBtn = document.getElementById("detailBtn");
+const undoBtn = document.getElementById("undoBtn");
+const redoBtn = document.getElementById("redoBtn");
+const exportBtn = document.getElementById("exportBtn");
+const nukeBtn = document.getElementById("nukeBtn");
+const laBtn = document.getElementById("laBtn");
+const addPart = document.getElementById("addPart");
+const deletePart = document.getElementById("deletePart");
+const modeBtn = document.getElementById("modeBtn");
+const partdetailexe = document.getElementById("partdetailexe")
+//three js------------------------
+
+const scene = new THREE.Scene()
+const camera = new THREE.PerspectiveCamera(45,window.innerWidth / window.innerHeight,0.1,1000);
+//fov -> aspect -> near -> far
+scene.add(camera)
+scene.background = new THREE.Color(0xffffff)
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5, 10, 5);
+scene.add(light)
+const ambient = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambient)
+camera.position.set(10,10,10)
+camera.lookAt(0, 0, 0);
+const renderer = new THREE.WebGLRenderer()
+renderer.setSize(window.innerWidth, window.innerHeight)
+document.body.appendChild(renderer.domElement)
+
+const geometry = new THREE.BoxGeometry(1,1,1)
+const material = new THREE.MeshStandardMaterial({color: 0x00ff00})
+const spawn = new THREE.Mesh(geometry, material) //u cannot delete this
+scene.add(spawn)
+
+const modes = [
+		"translate", //move
+		"rotate",
+		"scale"
+	]
+
+let thingery = 0
+
+let gizmo
+gizmo = new TransformControls(camera, renderer.domElement)
+
+gizmo.addEventListener("mouseDown", () => {
+	orbit.enabled = false;
+	save()
+});
+gizmo.addEventListener("mouseUp", () => {
+	orbit.enabled = true;
+});	
+scene.add(gizmo.getHelper())	
+gizmo.setMode(modes[thingery])
+
+const orbit = new OrbitControls(camera, renderer.domElement) //gd orbit??!?!?!
+
+addPart.addEventListener("click", () => {
+	save()
+	const geometry = new THREE.BoxGeometry(2,1,4) //x,y,z
+	
+	const material = new THREE.MeshStandardMaterial()
+
+	const part = new THREE.Mesh(geometry, material) 
+	scene.add(part)
+	parts.push(part)	
+})
+deletePart.addEventListener("click", () => {
+	const part = gizmo.object
+	if (!part) return
+	save()
+	gizmo.detach()
+	scene.remove(part)
+	if (parts.indexOf(part) !== -1) {
+		parts.splice(parts.indexOf(part), 1)
+	}
+	partdetailexe.textContent = "No part selected :/"
+})
+
+gizmo.setTranslationSnap(partTran)
+gizmo.setRotationSnap(THREE.MathUtils.degToRad(partRotate))
+gizmo.setScaleSnap(partScale)
+
+modeBtn.addEventListener("click", () => {
+	thingery++;
+	if (thingery === modes.length) {thingery = 0}
+	gizmo?.setMode(modes[thingery]);
+	if (modes[thingery] === "translate") {gizmo.setTranslationSnap(partTran)}
+	else if (modes[thingery] === "rotate") {gizmo.setRotationSnap(THREE.MathUtils.degToRad(partRotate))}
+	else {gizmo.setScaleSnap(partScale)}
+});
+
+//select thingery
+const raycaster = new THREE.Raycaster()
+const mouse = new THREE.Vector2() //3d mouse when 😱
+const parts = []
+const undo = []
+const redo = []
+
+renderer.domElement.addEventListener("click", (e) => {
+	const rect = renderer.domElement.getBoundingClientRect() //canva size
+	mouse.x = ((e.clientX - rect.left) / renderer.domElement.clientWidth) * 2 - 1
+	mouse.y = ((e.clientY - rect.top) / renderer.domElement.clientHeight) * -2 + 1
+	//bro this coord thing is weird asf why between -1 and 1
+	raycaster.setFromCamera(mouse, camera)
+	const inte = raycaster.intersectObjects(parts) //check parts
+	if (inte.length !== 0) {
+		gizmo.attach(inte[0].object)
+		const part = inte[0].object
+		const box = new THREE.Box3().setFromObject(part)
+		const size = new THREE.Vector3()
+		box.getSize(size)
+		partdetailexe.textContent = `Position: ${part.position.x}, ${part.position.y}, ${part.position.z}\n
+					Size: ${size.x}, ${size.y}, ${size.z}`
+	} else {
+		gizmo.detach();
+		partdetailexe.textContent = "No part selected :/"
+	}
+})
+
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+animate()
+
+//undo redo----------------
+function get() {
+	return parts.map(part => ({part: part, position: part.position.clone(), rotation: part.rotation.clone(), scale: part.scale.clone()}))
+}
+function save() {
+	undo.push(get())
+	redo.length = 0 //yeah
+}
+function restore(state) {
+	for (let i = parts.length - 1; i > -1; i--) {
+		if (!state.some(data => data.part === parts[i])) { //if the part is in the saved thingery
+			scene.remove(parts[i])
+			parts.splice(i, 1) // slash kill
+		}
+	}
+	for (const data of state) { //loop thru all data
+		if (!parts.includes(data.part)) {parts.push(data.part); scene.add(data.part)} //if deleted revive it
+		data.part.position.copy(data.position)
+		data.part.rotation.copy(data.rotation) //and restore its beauty
+		data.part.scale.copy(data.scale)
+	}
+}
+
+undoBtn.addEventListener("click", () => {
+	if (undo.length === 0) return
+	redo.push(get())
+	const prev = undo.pop()
+	restore(prev)
+})
+redoBtn.addEventListener("click", () => {
+	if (redo.length === 0) return
+	undo.push(get())
+	const next = redo.pop()
+	restore(next)
+})
+//export-----------------------
+
+//detail---------------------
+detailBtn.addEventListener("click", () => {
+	const popup = document.createElement("dialog");
+	popup.innerHTML = `
+		<h3>change what (type all box or else)</h3>
+		<input placeholder="obby name" id="oN">
+		<input placeholder="ur name (wat)" id="oC">
+		<input placeholder="tier or jtoh" id="oD">
+		<input placeholder="move snap (stud)" id="mS" type="number">
+		<input placeholder="scale snap (stud)" id="sS" type="number">
+		<input placeholder="rotate snap (degree)" id="rS" type="number">
+		<button id="confirm">confirm change</button>
+		<button id="die">die</button>
+	`
+	document.body.appendChild(popup);
+	const oN = popup.querySelector("#oN");
+	const oC = popup.querySelector("#oC");
+	const oD = popup.querySelector("#oD");
+	const mS = popup.querySelector("#mS");
+	const sS = popup.querySelector("#sS");
+	const rS = popup.querySelector("#rS");
+	popup.querySelector("#confirm").addEventListener("click", () => {
+		obbyName = oN.value;
+		obbyCreator = oC.value; //ik there is a smart way to do this
+		obbyDiff = oD.value; //but im not smart
+		obbyDel.name = oN.value;
+		obbyDel.creator = oC.value;
+		obbyDel.diff = oD.value;
+		partTran = Number(mS.value) || 1;
+		partScale = Number(sS.value) || 0.5;
+		partRotate = Number(rS.value) || 15;
+
+		if (modes[thingery] === "translate") {gizmo.setTranslationSnap(partTran)}
+		else if (modes[thingery] === "rotate") {gizmo.setRotationSnap(THREE.MathUtils.degToRad(partRotate))}
+		else {gizmo.setScaleSnap(partScale)}
+
+		updateDetail()
+		popup.close()
+	});
+	popup.querySelector("#die").addEventListener("click", () => {
+		popup.close()
+	});
+	//built in respect!
+	popup.showModal();
+})
+//random shit-----------------poop-------legends of orpby ranks---------wowza--
+nukeBtn.addEventListener("click", () => {
+	if (confirm("are you sure son")) {
+		if (confirm("really")) {
+			if (confirm("🤨🤨🤨")) {
+				window.close()
+			}
+		}
+	}
+})
+
+laBtn.addEventListener("click", async () => {
+	console.log("hi")
+	const response = await fetch('https://motivational-spark-api.vercel.app/api/quotes/random') //vercel lel
+	console.log(response)
+	const data = await response.json()
+	window.alert(data.quote)
+})
+window.addEventListener("beforeunload", function (event) {
+	event.preventDefault()
+	event.returnValue = ''
+})
+</script>

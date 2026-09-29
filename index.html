@@ -1,0 +1,21 @@
+<h1>orp studio in brazil 🥶🥶</h1>
+<title>bros got beer 333 iq 💀💀💀💀</title>
+<p>orpby naem: <input type="text" placeholder="naem" id="obbyName"></p>
+<p>your name: <input type="text" placeholder="<--" id="obbyCreator"></p>
+<p>diff: <input type="text" placeholder="tier or etoh" id="obbyDiff"></p>
+<p>create <button onclick="createObby()">new orpby</button></p>
+<!--im lazy to maek a js file for dis-->
+<script>
+const oN = document.getElementById("obbyName");
+const oC = document.getElementById("obbyCreator");
+const oD = document.getElementById("obbyDiff");
+function createObby() {
+	const obby = {
+		name: oN.value,
+		creator: oC.value,
+		diff: oD.value
+	}
+	localStorage.setItem("obby", JSON.stringify(obby))
+	window.open("index2.html", "_blank") //e
+}
+</script>
