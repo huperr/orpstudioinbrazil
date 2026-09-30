@@ -326,7 +326,7 @@ exportBtn.addEventListener("click", () => {
 
 //copy paste
 
-const copied = null
+let copied = null
 document.addEventListener("keydown", (e) => {
 	if (e.ctrlKey && e.key.toLowerCase() === "c") {
 		if (!gizmo.object) return
