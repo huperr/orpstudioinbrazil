@@ -121,7 +121,7 @@ addPart.addEventListener("click", () => {
 	save()
 	const geometry = new THREE.BoxGeometry(2,1,4) //x,y,z
 	
-	const material = new THREE.MeshStandardMaterial()
+	const material = new THREE.MeshStandardMaterial({color: "white"})
 
 	const part = new THREE.Mesh(geometry, material) 
 	scene.add(part)
@@ -335,6 +335,7 @@ document.addEventListener("keydown", (e) => {
 	if (e.ctrlKey && e.key.toLowerCase() === "v") {
 		if (!copied) return
 		const copy = copied.clone()
+		copy.material = copied.material.clone()
 		copy.position.copy(copied.position)
 		if (copyCheckbox.checked) {
 			copy.position.x += 3
