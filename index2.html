@@ -11,7 +11,10 @@
 <button id="addPart">add part</button>
 <button id="deletePart">kill part</button>
 <button id="modeBtn">switch mode</button>
-<p>sorri no save n load cuz illegal exporter 😱😨</p>
+<div><p>color: <input type="color" id="colorPicker" value="#00ff00"></p>
+<p>background color: <input type="color" id="backgroundColor" value="#ffffff"></p></div>
+<p>change position when paste? <input type="checkbox" id="copyCheckbox"></p>
+
 </div>
 <div style="outline: solid black 2px; margin: 5px; padding: 5px; width: 100px; font-size: 10px">
 <p id="partdetailexe">No part selected :/</p>
@@ -28,7 +31,7 @@
 <!--im lazy-->
 <script type="module">
 //ready thing
-const obbyDel = JSON.parse(localStorage.getItem("obby"));
+const obbyDel = JSON.parse(localStorage.getItem("obby")) || {}
 const detailTxt = document.getElementById("detailTxt");
 
 import * as THREE from "three";
@@ -61,8 +64,15 @@ const laBtn = document.getElementById("laBtn");
 const addPart = document.getElementById("addPart");
 const deletePart = document.getElementById("deletePart");
 const modeBtn = document.getElementById("modeBtn");
-const partdetailexe = document.getElementById("partdetailexe")
+const partdetailexe = document.getElementById("partdetailexe");
+const colorPicker = document.getElementById("colorPicker");
+const copyCheckbox = document.getElementById("copyCheckbox")
+const backgroundColor = document.getElementById("backgroundColor")
 //three js------------------------
+
+const parts = []
+const undo = []
+const redo = []
 
 const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(45,window.innerWidth / window.innerHeight,0.1,1000);
@@ -95,6 +105,7 @@ let thingery = 0
 
 let gizmo
 gizmo = new TransformControls(camera, renderer.domElement)
+const orbit = new OrbitControls(camera, renderer.domElement) //gd orbit??!?!?!
 
 gizmo.addEventListener("mouseDown", () => {
 	orbit.enabled = false;
@@ -106,8 +117,6 @@ gizmo.addEventListener("mouseUp", () => {
 scene.add(gizmo.getHelper())	
 gizmo.setMode(modes[thingery])
 
-const orbit = new OrbitControls(camera, renderer.domElement) //gd orbit??!?!?!
-
 addPart.addEventListener("click", () => {
 	save()
 	const geometry = new THREE.BoxGeometry(2,1,4) //x,y,z
@@ -118,6 +127,7 @@ addPart.addEventListener("click", () => {
 	scene.add(part)
 	parts.push(part)	
 })
+//delete
 deletePart.addEventListener("click", () => {
 	const part = gizmo.object
 	if (!part) return
@@ -128,6 +138,38 @@ deletePart.addEventListener("click", () => {
 		parts.splice(parts.indexOf(part), 1)
 	}
 	partdetailexe.textContent = "No part selected :/"
+})
+//keybinds
+document.addEventListener("keydown", (e) => {
+	if (e.key === "Delete") {
+		const part = gizmo.object
+		if (!part) return
+		save()
+		gizmo.detach()
+		scene.remove(part)
+		if (parts.indexOf(part) !== -1) {
+			parts.splice(parts.indexOf(part), 1)
+		}
+		partdetailexe.textContent = "No part selected :/"
+	}
+	if (e.key.toLowerCase() === "e") { //haha lower case wow very cool wow ow wowowo
+		thingery++;
+		if (thingery === modes.length) {thingery = 0}
+		gizmo?.setMode(modes[thingery]);
+		if (modes[thingery] === "translate") {gizmo.setTranslationSnap(partTran)}
+		else if (modes[thingery] === "rotate") {gizmo.setRotationSnap(THREE.MathUtils.degToRad(partRotate))}
+		else {gizmo.setScaleSnap(partScale)}
+	}
+	if (e.key.toLowerCase() === "w") {
+		const direction = new THREE.Vector3()
+		camera.getWorldDirection(direction)
+		camera.position.addScaledVector(direction, 1)
+	}
+	if (e.key.toLowerCase() === "s") {
+		const direction = new THREE.Vector3()
+		camera.getWorldDirection(direction)
+		camera.position.addScaledVector(direction, -1)
+	}
 })
 
 gizmo.setTranslationSnap(partTran)
@@ -143,12 +185,23 @@ modeBtn.addEventListener("click", () => {
 	else {gizmo.setScaleSnap(partScale)}
 });
 
+//color
+
+colorPicker.addEventListener("input", () => {
+	const part = gizmo.object
+	if (!part) return
+	part.material.color.set(colorPicker.value)
+})
+colorPicker.addEventListener("pointerdown", () => { //save yay
+	if (gizmo.object) save()
+})
+backgroundColor.addEventListener("input", () => {
+	scene.background = new THREE.Color(backgroundColor.value)
+})
+
 //select thingery
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2() //3d mouse when 😱
-const parts = []
-const undo = []
-const redo = []
 
 renderer.domElement.addEventListener("click", (e) => {
 	const rect = renderer.domElement.getBoundingClientRect() //canva size
@@ -160,14 +213,17 @@ renderer.domElement.addEventListener("click", (e) => {
 	if (inte.length !== 0) {
 		gizmo.attach(inte[0].object)
 		const part = inte[0].object
-		const box = new THREE.Box3().setFromObject(part)
+		colorPicker.value = "#" + part.material.color.getHexString() //colr
 		const size = new THREE.Vector3()
-		box.getSize(size)
+		part.geometry.computeBoundingBox()
+		part.geometry.boundingBox.getSize(size)
+		const size2 = size.clone().multiply(part.scale)
 		partdetailexe.textContent = `Position: ${part.position.x}, ${part.position.y}, ${part.position.z}\n
-					Size: ${size.x}, ${size.y}, ${size.z}`
+					Size: ${size2.x}, ${size2.y}, ${size2.z}`
 	} else {
 		gizmo.detach();
 		partdetailexe.textContent = "No part selected :/"
+		colorPicker.value = "#ffffff"
 	}
 })
 
@@ -179,7 +235,8 @@ animate()
 
 //undo redo----------------
 function get() {
-	return parts.map(part => ({part: part, position: part.position.clone(), rotation: part.rotation.clone(), scale: part.scale.clone()}))
+	return parts.map(part => ({part: part, position: part.position.clone(), rotation: part.rotation.clone(), scale: part.scale.clone(),
+					color: part.material.color.clone()}))
 }
 function save() {
 	undo.push(get())
@@ -197,6 +254,7 @@ function restore(state) {
 		data.part.position.copy(data.position)
 		data.part.rotation.copy(data.rotation) //and restore its beauty
 		data.part.scale.copy(data.scale)
+		data.part.material.color.copy(data.color)
 	}
 }
 
@@ -213,6 +271,80 @@ redoBtn.addEventListener("click", () => {
 	restore(next)
 })
 //export-----------------------
+
+let output
+exportBtn.addEventListener("click", () => {
+	output = {
+		"Difficulty": obbyDiff,
+		"ObbyName": obbyName,
+		"Creator": obbyCreator,
+		"Data": {
+			"Children": [
+				{
+					"Name": "SpawnLocation",
+					"ClassName": "Spawn",
+					"Properties": {
+						"Position": {"X": 0, "Y": 0, "Z": 0},
+						"Rotation": {"X": 0, "Y": 0, "Z": 0},
+						"Size": {"X": 1, "Y": 1, "Z": 1},
+						"Color": {"R": 0, "G": 1, "B": 0}
+					}
+				}
+			]
+		}
+	}
+	for (let part of parts) {
+		const size = new THREE.Vector3()
+		part.geometry.computeBoundingBox()
+		part.geometry.boundingBox.getSize(size)
+		const size2 = size.clone().multiply(part.scale)
+		const color = part.material.color
+		output.Data.Children.push({
+			"Name": "Part",
+			"ClassName": "Part",
+			"Properties": {
+				"Position": {"X": part.position.x, "Y": part.position.y, "Z": part.position.z},
+				"Rotation": {"X": THREE.MathUtils.radToDeg(part.rotation.x), 
+					     "Y": THREE.MathUtils.radToDeg(part.rotation.y), 
+				             "Z": THREE.MathUtils.radToDeg(part.rotation.z)},
+				"Size": {"X": size2.x, "Y": size2.y, "Z": size2.z},
+				"Color": {"R": color.r, "G": color.g, "B": color.b}
+			}
+		})
+	}
+	const json = JSON.stringify(output)
+	const blob = new Blob([json], {type: "application/json"})
+	const url = URL.createObjectURL(blob)
+	const link = document.createElement("a")
+	link.href = url
+	link.download = `${obbyName}.json`
+  	document.body.appendChild(link)
+  	link.click()
+  	document.body.removeChild(link)
+  	URL.revokeObjectURL(url)
+})
+
+//copy paste
+
+const copied = null
+document.addEventListener("keydown", () => {
+	if (e.ctrlKey && e.key.toLowerCase() === "c") {
+		if (!gizmo.object) return
+		copiedt = gizmo.object
+	}
+	if (e.ctrlKey && e.key.toLowerCase() === "v") {
+		if (!copied) return
+		const copy = copied.clone()
+		copy.position.copy(copied.position)
+		if (copyCheckbox.checked) {
+			copy.position.x += 3
+			copy.position.y += 3
+		}
+		scene.add(copy)
+		parts.push(copy)
+		gizmo.attach(copy)
+	}
+})
 
 //detail---------------------
 detailBtn.addEventListener("click", () => {
