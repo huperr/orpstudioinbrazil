@@ -1,5 +1,5 @@
 <title>orporporporporporporporp</title>
-
+<!--I SUFFER-->
 <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 67">
 
 <div style="outline: solid black 2px; margin: 5px; padding: 5px; display: flex; gap: 10px; align-items: center">
@@ -32,19 +32,26 @@
 			<label>color:<input type="color" id="colorPicker" value="#00ff00"></label>
 			<label>background color:<input type="color" id="backgroundColor" value="#ffffff"></label>
 		</div>
-		<input type="number" id="transparencyPicker" placeholder="transparency (0-1)" min="0" max="1" step="0.01">
+		<div style="display: flex; gap: 5px">
+			<input type="number" id="transparencyPicker" placeholder="transparency (0-1)" min="0" max="1" step="0.01">
+			<input type="number" id="neonPicker" placeholder="neon (1-100)" min="1" max="100" step="0.01">
+		</div>
 	</div>
 	<div style="display: flex; flex-direction: column; gap: 5px">
 		<div style="display: flex">
 			<button id="detailBtn">edit obby details</button>
 			<button id="exportBtn">export as json</button>
 		</div>
-		<label>change position when paste?<input type="checkbox" id="copyCheckbox"></label>
+	</div>
+	<div style="display: flex; gap: 5px">
+		<label>change position when paste?<input type="checkbox" id="copyCheckbox" checked></label>
+		<label>can't collide?<input type="checkbox" id="disableCheckbox"></label>
+		<label>do not download json<input type="checkbox" id="showjsonCheckbox"></label>
 	</div>
 </div>
 
-<div style="outline: solid black 2px; margin: 5px; padding: 5px; width: 100px; font-size: 10px;">
-<p id="partdetailexe">No part selected :/</p>
+<div style="outline: solid black 2px; margin: 5px; padding: 5px; width: 100px; font-size: 10px">
+<p id="partdetailexe" style="white-space: pre-line">No part selected :/</p>
 </div>
 
 </div>
@@ -96,7 +103,10 @@ const colorPicker = document.getElementById("colorPicker");
 const copyCheckbox = document.getElementById("copyCheckbox")
 const backgroundColor = document.getElementById("backgroundColor");
 const typeInput = document.getElementById("typeInput");
-const transparencyPicker = document.getElementById("transparencyPicker")
+const transparencyPicker = document.getElementById("transparencyPicker");
+const neonPicker = document.getElementById("neonPicker");
+const disabledCheckbox = document.getElementById("disableCheckbox"); //what
+const jsonCheckbox = document.getElementById("showjsonCheckbox");
 //three js------------------------
 
 const parts = []
@@ -153,6 +163,12 @@ addPart.addEventListener("click", () => {
 	const material = new THREE.MeshStandardMaterial({color: "white"})
 
 	const part = new THREE.Mesh(geometry, material) 
+
+	part.material.transparent = true
+	part.material.opacity = 1
+	part.userData.neon = 1
+	part.userData.disabled = false
+
 	scene.add(part)
 	parts.push(part)	
 })
@@ -214,7 +230,7 @@ modeBtn.addEventListener("click", () => {
 	else {gizmo.setScaleSnap(partScale)}
 });
 
-//color
+//color n stuff
 
 colorPicker.addEventListener("input", () => {
 	const part = gizmo.object
@@ -226,6 +242,30 @@ colorPicker.addEventListener("pointerdown", () => { //save yay
 })
 backgroundColor.addEventListener("input", () => {
 	scene.background = new THREE.Color(backgroundColor.value)
+})
+transparencyPicker.addEventListener("input", () => {
+	const part = gizmo.object
+	if (!part) return
+	part.material.opacity = 1 - Number(transparencyPicker.value)
+})
+transparencyPicker.addEventListener("pointerdown", () => {
+    if (gizmo.object) save()
+})
+disabledCheckbox.addEventListener("change", () => {
+	const part = gizmo.object
+	if (!part) return
+	part.userData.disabled = disabledCheckbox.checked
+})
+disabledCheckbox.addEventListener("pointerdown", () => {
+    if (gizmo.object) save()
+})
+neonPicker.addEventListener("input", () => {
+	const part = gizmo.object
+	if (!part) return
+	part.userData.neon = Number(neonPicker.value)
+})
+neonPicker.addEventListener("pointerdown", () => {
+    if (gizmo.object) save()
 })
 
 //select thingery
@@ -243,16 +283,24 @@ renderer.domElement.addEventListener("click", (e) => {
 		gizmo.attach(inte[0].object)
 		const part = inte[0].object
 		colorPicker.value = "#" + part.material.color.getHexString() //colr
+		transparencyPicker.value = 1 - part.material.opacity
+		disabledCheckbox.checked = part.userData.disabled || false
+		neonPicker.value = part.userData.neon
 		const size = new THREE.Vector3()
 		part.geometry.computeBoundingBox()
 		part.geometry.boundingBox.getSize(size)
 		const size2 = size.clone().multiply(part.scale)
-		partdetailexe.textContent = `Position: ${part.position.x}, ${part.position.y}, ${part.position.z}\n
-					Size: ${size2.x}, ${size2.y}, ${size2.z}`
+		partdetailexe.textContent = 
+					`Position: ${part.position.x}, ${part.position.y}, ${part.position.z}\n` +
+					`Size: ${size2.x}, ${size2.y}, ${size2.z}\n` +
+					`Neon: ${part.userData.neon}`
 	} else {
 		gizmo.detach();
 		partdetailexe.textContent = "No part selected :/"
 		colorPicker.value = "#ffffff"
+		neonPicker.value = 1
+		transparencyPicker.value = 0
+		disabledCheckbox.checked = false
 	}
 })
 
@@ -265,7 +313,8 @@ animate()
 //undo redo----------------
 function get() {
 	return parts.map(part => ({part: part, position: part.position.clone(), rotation: part.rotation.clone(), scale: part.scale.clone(),
-					color: part.material.color.clone()}))
+					color: part.material.color.clone(), opacity: part.material.opacity, disabled: part.userData.disabled || false,
+					neon: part.userData.neon || 1}))
 }
 function save() {
 	undo.push(get())
@@ -284,6 +333,9 @@ function restore(state) {
 		data.part.rotation.copy(data.rotation) //and restore its beauty
 		data.part.scale.copy(data.scale)
 		data.part.material.color.copy(data.color)
+		data.part.material.opacity = data.opacity
+		data.part.userData.disabled = data.disabled
+		data.part.userData.neon = data.neon
 	}
 }
 
@@ -312,12 +364,15 @@ exportBtn.addEventListener("click", () => {
 				{
 					"Name": "SpawnLocation",
 					"ClassName": "Spawn",
+					"Shape": "Part",
 					"Properties": {
 						"Position": {"X": 0, "Y": 0, "Z": 0},
 						"Rotation": {"X": 0, "Y": 0, "Z": 0},
 						"Size": {"X": 1, "Y": 1, "Z": 1},
 						"Color": {"R": 0, "G": 1, "B": 0}
-					}
+					},
+					"Transparency": "0",
+					"disabled": true
 				}
 			]
 		}
@@ -328,6 +383,8 @@ exportBtn.addEventListener("click", () => {
 		part.geometry.boundingBox.getSize(size)
 		const size2 = size.clone().multiply(part.scale)
 		const color = part.material.color
+		const transparency = part.material.opacity
+		const neon = part.userData.neon || 1
 		output.Data.Children.push({
 			"Name": "Part",
 			"ClassName": "Part",
@@ -337,20 +394,37 @@ exportBtn.addEventListener("click", () => {
 					     "Y": THREE.MathUtils.radToDeg(part.rotation.y), 
 				             "Z": THREE.MathUtils.radToDeg(part.rotation.z)},
 				"Size": {"X": size2.x, "Y": size2.y, "Z": size2.z},
-				"Color": {"R": color.r, "G": color.g, "B": color.b}
-			}
+				"Color": {"R": Math.min(color.r * neon, 1), "G": Math.min(color.g * neon, 1), "B": Math.min(color.b * neon, 1)},
+			},
+			"Transparency": 1 - transparency,
+			"disabled": part.userData.disabled || false
 		})
 	}
 	const json = JSON.stringify(output)
-	const blob = new Blob([json], {type: "application/json"})
-	const url = URL.createObjectURL(blob)
-	const link = document.createElement("a")
-	link.href = url
-	link.download = `${obbyName}.json`
-  	document.body.appendChild(link)
-  	link.click()
-  	document.body.removeChild(link)
-  	URL.revokeObjectURL(url)
+	const popup = document.createElement("dialog");
+	popup.innerHTML = `<h3>JSON</h3>
+			<button id="die">hide</button>
+			<button id="copy">copy all</button>
+			<pre>${json}</pre>`
+	document.body.appendChild(popup)
+	popup.querySelector('#die').addEventListener("click", () => {
+		popup.remove()
+	})
+	popup.querySelector('#copy').addEventListener("click", async () => {
+		await navigator.clipboard.writeText(json)
+	})
+	popup.showModal();
+	if (!jsonCheckbox.checked) {
+		const blob = new Blob([json], {type: "application/json"})
+		const url = URL.createObjectURL(blob)
+		const link = document.createElement("a")
+		link.href = url
+		link.download = `${obbyName}.json`
+  		document.body.appendChild(link)
+  		link.click()
+  		document.body.removeChild(link)
+  		URL.revokeObjectURL(url)
+	}
 })
 
 //copy paste
@@ -363,8 +437,10 @@ document.addEventListener("keydown", (e) => {
 	}
 	if (e.ctrlKey && e.key.toLowerCase() === "v") {
 		if (!copied) return
+		save()
 		const copy = copied.clone()
 		copy.material = copied.material.clone()
+		copy.userData = {...copied.userData}
 		copy.position.copy(copied.position)
 		if (copyCheckbox.checked) {
 			copy.position.x += 3
@@ -398,9 +474,9 @@ detailBtn.addEventListener("click", () => {
 	const sS = popup.querySelector("#sS");
 	const rS = popup.querySelector("#rS");
 	popup.querySelector("#confirm").addEventListener("click", () => {
-		obbyName = oN.value;
-		obbyCreator = oC.value; //ik there is a smart way to do this
-		obbyDiff = oD.value; //but im not smart
+		obbyName = oN.value || "";
+		obbyCreator = oC.value || ""; //ik there is a smart way to do this
+		obbyDiff = oD.value || ""; //but im not smart
 		obbyDel.name = oN.value;
 		obbyDel.creator = oC.value;
 		obbyDel.diff = oD.value;
@@ -413,10 +489,10 @@ detailBtn.addEventListener("click", () => {
 		else {gizmo.setScaleSnap(partScale)}
 
 		updateDetail()
-		popup.close()
+		popup.remove()
 	});
 	popup.querySelector("#die").addEventListener("click", () => {
-		popup.close()
+		popup.remove()
 	});
 	//built in respect!
 	popup.showModal();
@@ -425,5 +501,10 @@ detailBtn.addEventListener("click", () => {
 window.addEventListener("beforeunload", function (event) {
 	event.preventDefault()
 	event.returnValue = ''
+})
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight
+    camera.updateProjectionMatrix()
+    renderer.setSize(window.innerWidth, window.innerHeight)
 })
 </script>
