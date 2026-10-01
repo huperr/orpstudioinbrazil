@@ -394,7 +394,7 @@ exportBtn.addEventListener("click", () => {
 					     "Y": THREE.MathUtils.radToDeg(part.rotation.y), 
 				             "Z": THREE.MathUtils.radToDeg(part.rotation.z)},
 				"Size": {"X": size2.x, "Y": size2.y, "Z": size2.z},
-				"Color": {"R": Math.min(color.r * neon, 1), "G": Math.min(color.g * neon, 1), "B": Math.min(color.b * neon, 1)},
+				"Color": {"R": color.r * neon, "G": color.g * neon, "B": color.b * neon},
 			},
 			"Transparency": 1 - transparency,
 			"disabled": part.userData.disabled || false
